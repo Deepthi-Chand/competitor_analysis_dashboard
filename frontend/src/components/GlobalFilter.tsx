@@ -12,7 +12,6 @@ interface GlobalFilterProps {
   onChange: (updated: Partial<CAFilterState>) => void;
 }
 
-const YEARS = [2023, 2024, 2025, 2026];
 const MONTHS = [
   { value: 1, label: 'Jan' },
   { value: 2, label: 'Feb' },
@@ -28,6 +27,25 @@ const MONTHS = [
   { value: 12, label: 'Dec' },
 ];
 
+interface MonthYearOption {
+  value: string;
+  label: string;
+  month: number;
+  year: number;
+}
+
+// Generate combined month-year options (e.g., "Feb-2025")
+function generateMonthYearOptions(years: number[]): MonthYearOption[] {
+  return years.flatMap(year =>
+    MONTHS.map(month => ({
+      value: `${month.value}-${year}`,
+      label: `${month.label}-${year}`,
+      month: month.value,
+      year: year,
+    }))
+  );
+}
+
 const GlobalFilter: React.FC<GlobalFilterProps> = ({ filters, filterOptions, onChange }) => {
   const allStates = filterOptions?.states || [];
   const availableStates = filters.region && filters.region !== 'All'
@@ -35,6 +53,8 @@ const GlobalFilter: React.FC<GlobalFilterProps> = ({ filters, filterOptions, onC
     : allStates;
   
   const counties = filterOptions?.counties[filters.state] || [];
+  const years = filterOptions?.years || [];
+  const monthYearOptions = generateMonthYearOptions(years);
 
   const renderMultiSelect = (
     label: string,
@@ -46,22 +66,22 @@ const GlobalFilter: React.FC<GlobalFilterProps> = ({ filters, filterOptions, onC
       ? 'All'
       : selected.length === 1
       ? selected[0]
-      : `${selected.length} selected`;
+      : `Multiple values`;
 
     return (
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+      <div className="flex flex-col">
+        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-0.5">
           {label}
         </label>
         <Popover>
           <PopoverTrigger asChild>
-            <button className="h-8 px-3 text-sm border border-gray-300 rounded bg-white hover:bg-gray-50 flex items-center justify-between gap-2 min-w-[140px]">
+            <button className="h-6 px-2 text-[11px] text-purple-700 font-medium bg-transparent hover:bg-gray-50 flex items-center gap-1">
               <span className="truncate">{displayText}</span>
-              <ChevronDown className="h-4 w-4 text-gray-400" />
+              <ChevronDown className="h-3 w-3 text-gray-400" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-64 p-3">
-            <div className="space-y-2">
+          <PopoverContent className="w-56 p-2">
+            <div className="space-y-1">
               {options.map((option) => {
                 const isChecked = selected.includes(option);
                 return (
@@ -79,7 +99,7 @@ const GlobalFilter: React.FC<GlobalFilterProps> = ({ filters, filterOptions, onC
                         }
                       }}
                     />
-                    <span className="text-sm">{option}</span>
+                    <span className="text-xs">{option}</span>
                   </label>
                 );
               })}
@@ -90,184 +110,180 @@ const GlobalFilter: React.FC<GlobalFilterProps> = ({ filters, filterOptions, onC
     );
   };
 
+  const fromMonthLabel = MONTHS.find(m => m.value === filters.period_from_month)?.label || '';
+  const toMonthLabel = MONTHS.find(m => m.value === filters.period_to_month)?.label || '';
+  const fromValue = `${filters.period_from_month}-${filters.period_from_year}`;
+  const toValue = `${filters.period_to_month}-${filters.period_to_year}`;
+  const periodDisplay = `${fromMonthLabel}-${filters.period_from_year} to ${toMonthLabel}-${filters.period_to_year}`;
+
+  // Filter options to prevent invalid date ranges
+  const fromYearMonth = filters.period_from_year * 100 + filters.period_from_month;
+  const toYearMonth = filters.period_to_year * 100 + filters.period_to_month;
+  const validToOptions = monthYearOptions.filter(opt => opt.year * 100 + opt.month >= fromYearMonth);
+  const validFromOptions = monthYearOptions.filter(opt => opt.year * 100 + opt.month <= toYearMonth);
+
   return (
-    <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3">
-      <div className="flex items-end gap-4 flex-wrap">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            Period
-          </label>
-          <div className="flex items-center gap-2">
-            <Select
-              value={String(filters.period_from_year)}
-              onValueChange={(v) => onChange({ period_from_year: Number(v) })}
-            >
-              <SelectTrigger className="h-8 w-20 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {YEARS.map((year) => (
-                  <SelectItem key={year} value={String(year)}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={String(filters.period_from_month)}
-              onValueChange={(v) => onChange({ period_from_month: Number(v) })}
-            >
-              <SelectTrigger className="h-8 w-16 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.map((month) => (
-                  <SelectItem key={month.value} value={String(month.value)}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-gray-400">—</span>
-            <Select
-              value={String(filters.period_to_year)}
-              onValueChange={(v) => onChange({ period_to_year: Number(v) })}
-            >
-              <SelectTrigger className="h-8 w-20 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {YEARS.map((year) => (
-                  <SelectItem key={year} value={String(year)}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={String(filters.period_to_month)}
-              onValueChange={(v) => onChange({ period_to_month: Number(v) })}
-            >
-              <SelectTrigger className="h-8 w-16 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.map((month) => (
-                  <SelectItem key={month.value} value={String(month.value)}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            Region
-          </label>
-          <Select
-            value={filters.region}
-            onValueChange={(v) => onChange({ region: v, state: 'All', county: 'All' })}
-          >
-            <SelectTrigger className="h-8 w-32 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {filterOptions?.regions.map((region) => (
-                <SelectItem key={region} value={region}>
-                  {region}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            State
-          </label>
-          <Select
-            value={filters.state}
-            onValueChange={(v) => onChange({ state: v, county: 'All' })}
-          >
-            <SelectTrigger className="h-8 w-32 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {availableStates.map((state) => (
-                <SelectItem key={state} value={state}>
-                  {state}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            County
-          </label>
-          <Select
-            value={filters.county}
-            onValueChange={(v) => onChange({ county: v })}
-          >
-            <SelectTrigger className="h-8 w-32 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {counties.map((county) => (
-                <SelectItem key={county} value={county}>
-                  {county}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            Ind-Grp Plans
-          </label>
-          <Select
-            value={filters.ind_grp_plans}
-            onValueChange={(v) => onChange({ ind_grp_plans: v, ma_mapd_pdp: [], snp_plan_type: [], plan_type: [] })}
-          >
-            <SelectTrigger className="h-8 w-40 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {filterOptions?.ind_grp_options.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {renderMultiSelect(
-          'MA-MAPD-PDP',
-          filterOptions?.ma_mapd_pdp_options || [],
-          filters.ma_mapd_pdp,
-          (values) => onChange({ ma_mapd_pdp: values, snp_plan_type: [], plan_type: [] })
-        )}
-
-        {renderMultiSelect(
-          'SNP Plan Type',
-          filterOptions?.snp_plan_types || [],
-          filters.snp_plan_type,
-          (values) => onChange({ snp_plan_type: values, plan_type: [] })
-        )}
-
-        {renderMultiSelect(
-          'Plan Type',
-          filterOptions?.plan_types || [],
-          filters.plan_type,
-          (values) => onChange({ plan_type: values })
-        )}
-
+    <div className="flex items-center gap-6 flex-wrap">
+      {/* Period */}
+      <div className="flex flex-col">
+        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-0.5">Period</label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="h-6 px-2 text-[11px] text-purple-700 font-medium bg-transparent hover:bg-gray-50 flex items-center gap-1">
+              <span>{periodDisplay}</span>
+              <ChevronDown className="h-3 w-3 text-gray-400" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-3">
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-gray-500 uppercase">From</span>
+                <Select
+                  value={fromValue}
+                  onValueChange={(v) => {
+                    const opt = monthYearOptions.find(o => o.value === v);
+                    if (opt) onChange({ period_from_month: opt.month, period_from_year: opt.year });
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-24 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {validFromOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-gray-400 text-xs mt-4">to</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-gray-500 uppercase">To</span>
+                <Select
+                  value={toValue}
+                  onValueChange={(v) => {
+                    const opt = monthYearOptions.find(o => o.value === v);
+                    if (opt) onChange({ period_to_month: opt.month, period_to_year: opt.year });
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-24 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {validToOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
+
+      {/* Sales Region */}
+      <div className="flex flex-col">
+        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-0.5">Sales Region</label>
+        <Select
+          value={filters.region}
+          onValueChange={(v) => onChange({ region: v, state: 'All', county: 'All' })}
+        >
+          <SelectTrigger className="h-6 w-auto min-w-[60px] border-0 shadow-none text-[11px] text-purple-700 font-medium p-0 px-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {filterOptions?.regions.map((region) => (
+              <SelectItem key={region} value={region}>
+                {region}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* State */}
+      <div className="flex flex-col">
+        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-0.5">State</label>
+        <Select
+          value={filters.state}
+          onValueChange={(v) => onChange({ state: v, county: 'All' })}
+        >
+          <SelectTrigger className="h-6 w-auto min-w-[60px] border-0 shadow-none text-[11px] text-purple-700 font-medium p-0 px-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableStates.map((state) => (
+              <SelectItem key={state} value={state}>
+                {state}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* County */}
+      <div className="flex flex-col">
+        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-0.5">County</label>
+        <Select
+          value={filters.county}
+          onValueChange={(v) => onChange({ county: v })}
+        >
+          <SelectTrigger className="h-6 w-auto min-w-[60px] border-0 shadow-none text-[11px] text-purple-700 font-medium p-0 px-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {counties.map((county) => (
+              <SelectItem key={county} value={county}>
+                {county}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Ind-Grp Plans */}
+      <div className="flex flex-col">
+        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-0.5">Ind-Grp Plans</label>
+        <Select
+          value={filters.ind_grp_plans}
+          onValueChange={(v) => onChange({ ind_grp_plans: v, ma_mapd_pdp: [], snp_plan_type: [], plan_type: [] })}
+        >
+          <SelectTrigger className="h-6 w-auto min-w-[100px] border-0 shadow-none text-[11px] text-purple-700 font-medium p-0 px-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {filterOptions?.ind_grp_options.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {renderMultiSelect(
+        'MA-MAPD-PDP',
+        filterOptions?.ma_mapd_pdp_options || [],
+        filters.ma_mapd_pdp,
+        (values) => onChange({ ma_mapd_pdp: values, snp_plan_type: [], plan_type: [] })
+      )}
+
+      {renderMultiSelect(
+        'SNP Plan Type',
+        filterOptions?.snp_plan_types || [],
+        filters.snp_plan_type,
+        (values) => onChange({ snp_plan_type: values, plan_type: [] })
+      )}
+
+      {renderMultiSelect(
+        'Plan Type',
+        filterOptions?.plan_types || [],
+        filters.plan_type,
+        (values) => onChange({ plan_type: values })
+      )}
     </div>
   );
 };

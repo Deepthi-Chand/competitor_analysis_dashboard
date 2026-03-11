@@ -1,3 +1,5 @@
+// NOTE: Keep in sync with frontend/src/utils/regionMapping.ts
+
 export const STATE_TO_REGION: Record<string, string> = {
   // North
   'North Dakota': 'North',

@@ -83,6 +83,7 @@ export interface FilterOptions {
   regions: string[];
   states: string[];
   counties: Record<string, string[]>;
+  years: number[];
   plan_types: string[];
   snp_plan_types: string[];
   ind_grp_options: string[];

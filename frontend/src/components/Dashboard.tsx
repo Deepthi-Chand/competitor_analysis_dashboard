@@ -1,3 +1,4 @@
+import { Info } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import useDashboard from '../hooks/useDashboard';
 import { CAFilterState, DEFAULT_FILTERS } from '../types';
@@ -26,9 +27,10 @@ const Dashboard: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Sticky filter bar */}
       <div className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
-        <div className="px-4 py-2">
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-base font-semibold text-gray-800">Competitor Analysis</h1>
+        <div className="px-4 py-1.5">
+          <div className="flex items-center gap-1 mb-1">
+            <h1 className="text-xl font-bold text-purple-900">Competitor Analysis</h1>
+            <Info className="h-3.5 w-3.5 text-gray-400" />
           </div>
           <GlobalFilter filters={filters} filterOptions={filterOptions} onChange={handleFilterChange} />
         </div>
@@ -45,7 +47,7 @@ const Dashboard: React.FC = () => {
         {/* Top row: Market Highlights | Monthly Trend | Market Share */}
         <div className="grid grid-cols-12 gap-4 mb-4">
           <div className="col-span-12 lg:col-span-3">
-            <MarketHighlights data={highlights} loading={loading} filters={filters} />
+            <MarketHighlights data={highlights} loading={loading} />
           </div>
           <div className="col-span-12 lg:col-span-6">
             <MonthlyTrend
@@ -57,7 +59,7 @@ const Dashboard: React.FC = () => {
             />
           </div>
           <div className="col-span-12 lg:col-span-3">
-            <MarketShare data={marketShare} loading={loading} />
+            <MarketShare data={marketShare} loading={loading} filters={filters} />
           </div>
         </div>
 

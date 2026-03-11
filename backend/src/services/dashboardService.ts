@@ -12,16 +12,16 @@ const MONTH_ABBR: Record<number, string> = {
 };
 
 const ORG_COLORS: Record<string, string> = {
-  'Elevance':                           '#6366F1',
-  'Elevance Health':                    '#6366F1',
-  'Humana Inc.':                        '#F472B6',
-  'UHG':                                '#FBBF24',
-  'CVS':                                '#818CF8',
-  'MEDICAL MUTUAL OF OHIO':             '#94A3B8',
-  'Medical Mutual of Ohio':             '#94A3B8',
-  'Centene Corporation':                '#FB923C',
-  'Devoted Health, Inc.':               '#34D399',
-  'The Cigna Group':                    '#38BDF8',
+  'Elevance':                           '#A5B4FC',
+  'Elevance Health':                    '#A5B4FC',
+  'Humana Inc.':                        '#F9A8D4',
+  'UHG':                                '#FDE68A',
+  'CVS':                                '#C4B5FD',
+  'MEDICAL MUTUAL OF OHIO':             '#CBD5E1',
+  'Medical Mutual of Ohio':             '#CBD5E1',
+  'Centene Corporation':                '#FDBA74',
+  'Devoted Health, Inc.':               '#6EE7B7',
+  'The Cigna Group':                    '#7DD3FC',
   'Health Care Service Corporation':    '#A78BFA',
 };
 const DEFAULT_COLOR = '#CBD5E1';
@@ -183,33 +183,46 @@ export async function getMonthlyTrend(f: CAFilters): Promise<MonthlyTrendPoint[]
 export async function getMarketShare(f: CAFilters): Promise<MarketShareOrg[]> {
   const ty = f.period_to_year ?? 2026;
   const tm = f.period_to_month ?? 2;
-  const fy = f.period_from_year ?? 2025;
-  const fm = f.period_from_month ?? 2;
+  
+  // Calculate previous month (for MoM comparison)
+  let prevYear = ty;
+  let prevMonth = tm - 1;
+  if (prevMonth < 1) {
+    prevMonth = 12;
+    prevYear = ty - 1;
+  }
 
   const { clause, params } = buildWhere(f);
+  const baseParamCount = params.length;
 
+  // Get current month enrollments by org (parameterized)
   const sqlCurrent = `
     SELECT parent_organization AS org, SUM(enrollments) AS enrollments
     FROM plan_data
-    ${clause ? clause + ' AND' : 'WHERE'} year = ${ty} AND month_num = ${tm}
+    ${clause ? clause + ' AND' : 'WHERE'} year = $${baseParamCount + 1} AND month_num = $${baseParamCount + 2}
     GROUP BY parent_organization
     ORDER BY enrollments DESC
   `;
+  
+  // Get previous month enrollments by org (parameterized)
   const sqlPrior = `
     SELECT parent_organization AS org, SUM(enrollments) AS enrollments
     FROM plan_data
-    ${clause ? clause + ' AND' : 'WHERE'} year = ${fy} AND month_num = ${fm}
+    ${clause ? clause + ' AND' : 'WHERE'} year = $${baseParamCount + 1} AND month_num = $${baseParamCount + 2}
     GROUP BY parent_organization
   `;
 
   const [curr, prior] = await Promise.all([
-    query(sqlCurrent, params),
-    query(sqlPrior, params),
+    query(sqlCurrent, [...params, ty, tm]),
+    query(sqlPrior, [...params, prevYear, prevMonth]),
   ]);
 
+  // Step 1: Calculate net enrollments for current and previous month
   const totalCurr = curr.rows.reduce((s, r) => s + parseInt(r.enrollments), 0);
   const totalPrior = prior.rows.reduce((s, r) => s + parseInt(r.enrollments), 0);
-  const marketGrowth = totalPrior > 0 ? (totalCurr - totalPrior) / totalPrior * 100 : 0;
+  
+  // Step 2 & 3: Calculate overall market growth (aggregated across all unique parent orgs)
+  const marketGrowthRate = totalPrior > 0 ? ((totalCurr - totalPrior) / totalPrior) * 100 : 0;
 
   const priorMap: Record<string, number> = {};
   prior.rows.forEach(r => { priorMap[r.org] = parseInt(r.enrollments); });
@@ -217,36 +230,79 @@ export async function getMarketShare(f: CAFilters): Promise<MarketShareOrg[]> {
   return curr.rows.map(r => {
     const enr = parseInt(r.enrollments);
     const priorEnr = priorMap[r.org] ?? 0;
-    const orgGrowth = priorEnr > 0 ? (enr - priorEnr) / priorEnr * 100 : null;
-    const growthVsAvg = orgGrowth !== null ? Math.round((orgGrowth - marketGrowth) * 100) / 100 : null;
+    
+    // Step 4: Calculate each org's growth rate (current - previous) / previous
+    const orgGrowthRate = priorEnr > 0 ? ((enr - priorEnr) / priorEnr) * 100 : null;
+    
+    // Step 5: Compare org's growth rate with market average growth
+    // If org growth > market average growth => above market (▲)
+    // Otherwise => below market (▼)
+    const isAboveMarketAvg = orgGrowthRate !== null ? orgGrowthRate > marketGrowthRate : null;
+    const growthVsAvg = orgGrowthRate !== null ? Math.round((orgGrowthRate - marketGrowthRate) * 100) / 100 : null;
+    
     return {
       org: r.org,
       enrollments: enr,
       market_share_pct: totalCurr > 0 ? Math.round(enr / totalCurr * 10000) / 100 : 0,
       growth_vs_avg: growthVsAvg,
-      above_avg: growthVsAvg !== null ? growthVsAvg >= 0 : null,
+      above_avg: isAboveMarketAvg,
     };
   });
 }
 
 export async function getBottomGrid(f: CAFilters): Promise<BottomGridRow[]> {
   const { clause, params } = buildWhere(f);
+  const baseParamCount = params.length;
 
+  // Derive the 3 most recent years up to period_to_year from the actual filtered data
+  const toYear = f.period_to_year ?? 9999;
+  const yearClause = clause ? `${clause} AND year <= $${baseParamCount + 1}` : `WHERE year <= $${baseParamCount + 1}`;
+  const maxYearResult = await query(
+    `SELECT year FROM plan_data ${yearClause} GROUP BY year ORDER BY year DESC LIMIT 3`,
+    [...params, toYear]
+  );
+  const years = maxYearResult.rows.map(r => +r.year).sort();
+  if (years.length === 0) return [];
+
+  // Build parameterized year placeholders
+  const yearPlaceholders = years.map((_, i) => `$${baseParamCount + 1 + i}`).join(', ');
+  const yearParams = [...params, ...years];
+
+  // Query for enrollments by plan_type (for plan_type_enrollments chart)
   const sql = `
     SELECT
       parent_organization AS org,
       year,
       plan_type,
       SUM(enrollments)         AS enrollments,
-      COUNT(DISTINCT plan_id)  AS num_plans,
       SUM(SUM(enrollments)) OVER (PARTITION BY year) AS year_total
     FROM plan_data
-    ${clause ? clause + ' AND' : 'WHERE'} year IN (2023, 2024, 2025)
+    ${clause ? clause + ' AND' : 'WHERE'} year IN (${yearPlaceholders})
     GROUP BY parent_organization, year, plan_type
     ORDER BY parent_organization, year, enrollments DESC
   `;
 
-  const result = await query(sql, params);
+  // Separate query for distinct plan count per org/year (to avoid double-counting)
+  const planCountSql = `
+    SELECT
+      parent_organization AS org,
+      year,
+      COUNT(DISTINCT plan_id) AS num_plans
+    FROM plan_data
+    ${clause ? clause + ' AND' : 'WHERE'} year IN (${yearPlaceholders})
+    GROUP BY parent_organization, year
+  `;
+
+  const [result, planCountResult] = await Promise.all([
+    query(sql, yearParams),
+    query(planCountSql, yearParams),
+  ]);
+
+  // Build a lookup map for plan counts
+  const planCountMap: Record<string, number> = {};
+  planCountResult.rows.forEach(r => {
+    planCountMap[`${r.org}-${r.year}`] = parseInt(r.num_plans);
+  });
 
   const selectedOrgs = f.parent_orgs && f.parent_orgs.length > 0 ? f.parent_orgs : null;
   let topOrgs: string[];
@@ -267,15 +323,13 @@ export async function getBottomGrid(f: CAFilters): Promise<BottomGridRow[]> {
   return topOrgs.map(org => {
     const orgRows = result.rows.filter(r => r.org === org);
 
-    const byYear: Record<number, { enr: number; plans: Set<string>; yearTotal: number; planTypes: Record<string, number> }> = {};
+    const byYear: Record<number, { enr: number; yearTotal: number; planTypes: Record<string, number> }> = {};
     orgRows.forEach(r => {
       const yr = +r.year;
-      if (!byYear[yr]) byYear[yr] = { enr: 0, plans: new Set(), yearTotal: parseFloat(r.year_total), planTypes: {} };
+      if (!byYear[yr]) byYear[yr] = { enr: 0, yearTotal: parseFloat(r.year_total), planTypes: {} };
       byYear[yr].enr += parseInt(r.enrollments);
       byYear[yr].planTypes[r.plan_type] = (byYear[yr].planTypes[r.plan_type] ?? 0) + parseInt(r.enrollments);
     });
-
-    const years = [2023, 2024, 2025];
     const planTypeEnrollments: { year: number; plan_type: string; value: number }[] = [];
     years.forEach(yr => {
       if (byYear[yr]) {
@@ -294,7 +348,7 @@ export async function getBottomGrid(f: CAFilters): Promise<BottomGridRow[]> {
       })),
       num_plans: years.map(yr => ({
         year: yr,
-        value: byYear[yr] ? Object.keys(byYear[yr].planTypes).length : 0,
+        value: planCountMap[`${org}-${yr}`] ?? 0,
       })),
       enrollments: years.map(yr => ({
         year: yr,
@@ -306,7 +360,7 @@ export async function getBottomGrid(f: CAFilters): Promise<BottomGridRow[]> {
 }
 
 export async function getFilterOptions(): Promise<FilterOptions> {
-  const [statesResult, countiesResult, planTypesResult, orgsResult] = await Promise.all([
+  const [statesResult, countiesResult, planTypesResult, orgsResult, yearsResult] = await Promise.all([
     query('SELECT DISTINCT state FROM plan_data ORDER BY state'),
     query('SELECT DISTINCT state, county FROM plan_data ORDER BY state, county'),
     query('SELECT DISTINCT plan_type FROM plan_data ORDER BY plan_type'),
@@ -316,6 +370,7 @@ export async function getFilterOptions(): Promise<FilterOptions> {
       GROUP BY parent_organization
       ORDER BY total_enrollments DESC
     `),
+    query('SELECT DISTINCT year FROM plan_data ORDER BY year'),
   ]);
 
   const counties: Record<string, string[]> = {};
@@ -331,6 +386,7 @@ export async function getFilterOptions(): Promise<FilterOptions> {
     regions:           ['All', ...REGIONS],
     states:            ['All', ...statesResult.rows.map(r => r.state)],
     counties,
+    years:             yearsResult.rows.map(r => +r.year),
     plan_types:        planTypesResult.rows.map(r => r.plan_type),
     snp_plan_types:    ['NON-SNP', 'Dual-Eligible', 'Institutional', 'Chronic or Disabling Condition'],
     ind_grp_options:   ['Individual MA Plans', 'Group MA Plans'],
