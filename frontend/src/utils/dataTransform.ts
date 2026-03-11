@@ -43,3 +43,21 @@ export const getChartColors = (): string[] => [
   '#8884d8', '#82ca9d', '#ffc658', '#ff7300',
   '#00C49F', '#FFBB28', '#FF8042', '#0088FE',
 ];
+
+export const formatEnrollment = (n: number): string => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `${Math.round(n / 1_000)}K`;
+  return String(n);
+};
+
+export const monthLabel = (year: number, monthNum: number): string => {
+  const abbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${abbr[monthNum - 1]}-${String(year).slice(2)}`;
+};
+
+export const yoyLabel = (curr: number, prev: number): string => {
+  if (!prev) return '—';
+  const pct = ((curr - prev) / prev) * 100;
+  const sign = pct >= 0 ? '▲' : '▼';
+  return `${sign} ${Math.abs(pct).toFixed(1)}%`;
+};

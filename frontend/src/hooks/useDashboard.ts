@@ -1,43 +1,77 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchDashboardData, fetchDashboardMeta } from '../services/api';
-import { DashboardData, DashboardFilters, DashboardMeta } from '../types';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  fetchBottomGrid,
+  fetchFilterOptions,
+  fetchMarketHighlights,
+  fetchMarketShare,
+  fetchMonthlyTrend,
+} from '../services/api';
+import {
+  BottomGridRow,
+  CAFilterState,
+  DEFAULT_FILTERS,
+  FilterOptions,
+  MarketHighlightsData,
+  MarketShareOrg,
+  MonthlyTrendPoint,
+} from '../types';
 
-const useDashboard = (filters: Partial<DashboardFilters> = {}) => {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [meta, setMeta] = useState<DashboardMeta | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isInitialMount = useRef(true);
+interface DashboardState {
+  filterOptions: FilterOptions | null;
+  highlights:   MarketHighlightsData | null;
+  trend:        MonthlyTrendPoint[];
+  marketShare:  MarketShareOrg[];
+  bottomGrid:   BottomGridRow[];
+  loading:      boolean;
+  error:        string | null;
+}
 
-  const fetchData = useCallback(async (currentFilters: Partial<DashboardFilters>) => {
-    setLoading(true);
-    setError(null);
+const useDashboard = (filters: CAFilterState = DEFAULT_FILTERS) => {
+  const [state, setState] = useState<DashboardState>({
+    filterOptions: null,
+    highlights:    null,
+    trend:         [],
+    marketShare:   [],
+    bottomGrid:    [],
+    loading:       true,
+    error:         null,
+  });
 
+  const fetchAll = useCallback(async (f: CAFilterState) => {
+    setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const [metaResponse, dataResponse] = await Promise.all([
-        fetchDashboardMeta(),
-        fetchDashboardData(currentFilters),
+      const filterOptions = await fetchFilterOptions();
+      
+      if (f.parent_orgs.length === 0 && filterOptions.parent_orgs && filterOptions.parent_orgs.length > 0) {
+        setState(prev => ({ ...prev, filterOptions, loading: false }));
+        return;
+      }
+      
+      const [highlights, trend, marketShare, bottomGrid] = await Promise.all([
+        fetchMarketHighlights(f),
+        fetchMonthlyTrend(f),
+        fetchMarketShare(f),
+        fetchBottomGrid(f),
       ]);
-
-      setMeta(metaResponse);
-      setData(dataResponse);
+      setState({ filterOptions, highlights, trend, marketShare, bottomGrid, loading: false, error: null });
     } catch (err) {
       const e = err as { response?: { data?: { message?: string } }; message?: string };
-      setError(e.response?.data?.message || e.message || 'Failed to fetch dashboard data');
-    } finally {
-      setLoading(false);
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: e.response?.data?.message || e.message || 'Failed to load dashboard data',
+      }));
     }
   }, []);
 
-  useEffect(() => {
-    fetchData(filters);
-  }, [fetchData, filters.timeRange, filters.category]);
+  const filtersJson = JSON.stringify(filters);
+  useEffect(() => { 
+    fetchAll(filters); 
+  }, [fetchAll, filtersJson]);
 
-  const refetch = useCallback(() => {
-    fetchData(filters);
-  }, [fetchData, filters]);
+  const refetch = useCallback(() => fetchAll(filters), [fetchAll, filters]);
 
-  return { data, meta, loading, error, refetch };
+  return { ...state, refetch };
 };
 
 export default useDashboard;

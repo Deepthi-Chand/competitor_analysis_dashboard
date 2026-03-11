@@ -31,15 +31,20 @@ app.use(
   })
 );
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'TooManyRequests', message: 'Too many requests, please try again later.' },
-});
+const RATE_LIMIT_ENABLED = process.env.USE_RATE_LIMIT === 'true';
 
-app.use(limiter);
+if (!RATE_LIMIT_ENABLED) {
+  console.log('Rate limiting disabled (USE_RATE_LIMIT != true)');
+} else {
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'TooManyRequests', message: 'Too many requests, please try again later.' },
+  });
+  app.use(limiter);
+}
 app.use(express.json({ limit: '10kb' }));
 app.use(morgan('combined'));
 

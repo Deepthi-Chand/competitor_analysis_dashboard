@@ -1,101 +1,69 @@
-import { RefreshCw } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import useDashboard from '../hooks/useDashboard';
-import { DashboardFilters } from '../types';
-import ChartFour from './ChartFour';
-import ChartOne from './ChartOne';
-import ChartThree from './ChartThree';
-import ChartTwo from './ChartTwo';
+import { CAFilterState, DEFAULT_FILTERS } from '../types';
+import BottomGrid from './BottomGrid';
 import GlobalFilter from './GlobalFilter';
-import { Button } from './ui/button';
+import MarketHighlights from './MarketHighlights';
+import MarketShare from './MarketShare';
+import MonthlyTrend from './MonthlyTrend';
 
 const Dashboard: React.FC = () => {
-  const [filters, setFilters] = useState<DashboardFilters>({
-    timeRange: '30d',
-    category: 'all',
-  });
-  const { data, meta, loading, error, refetch } = useDashboard(filters);
+  const [filters, setFilters] = useState<CAFilterState>(DEFAULT_FILTERS);
+  const { filterOptions, highlights, trend, marketShare, bottomGrid, loading, error, refetch } = useDashboard(filters);
 
-  const handleFilterChange = (filterId: string, value: string): void => {
-    setFilters((prev) => ({ ...prev, [filterId]: value }));
-  };
+  useEffect(() => {
+    if (filterOptions && filterOptions.parent_orgs && filterOptions.parent_orgs.length > 0 && filters.parent_orgs.length === 0) {
+      const top5Orgs = filterOptions.parent_orgs.slice(0, 5);
+      setFilters(prev => ({ ...prev, parent_orgs: top5Orgs }));
+    }
+  }, [filterOptions, filters.parent_orgs.length]);
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-destructive mb-4">Error</h2>
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={refetch}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const handleFilterChange = useCallback((updated: Partial<CAFilterState>) => {
+    setFilters(prev => ({ ...prev, ...updated }));
+  }, []);
 
   return (
-    <div className="container mx-auto p-6">
-      <header className="mb-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">
-              {meta?.lastUpdated
-                ? `Last updated: ${new Date(meta.lastUpdated).toLocaleString()}`
-                : 'Loading...'}
-            </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Sticky filter bar */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
+        <div className="px-4 py-2">
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-base font-semibold text-gray-800">Competitor Analysis</h1>
           </div>
-          <Button onClick={refetch} variant="outline" disabled={loading}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <GlobalFilter filters={filters} filterOptions={filterOptions} onChange={handleFilterChange} />
         </div>
+      </div>
 
-        <div className="flex flex-wrap gap-4">
-          {meta?.filters?.map((filter) => (
-            <GlobalFilter
-              key={filter.id}
-              label={filter.label}
-              options={filter.options}
-              value={filters[filter.id as keyof DashboardFilters] ?? ''}
-              onChange={(value) => handleFilterChange(filter.id, value)}
+      {/* Main content */}
+      <div className="px-4 py-4">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 text-sm">
+            {error} — <button onClick={refetch} className="underline">retry</button>
+          </div>
+        )}
+
+        {/* Top row: Market Highlights | Monthly Trend | Market Share */}
+        <div className="grid grid-cols-12 gap-4 mb-4">
+          <div className="col-span-12 lg:col-span-3">
+            <MarketHighlights data={highlights} loading={loading} filters={filters} />
+          </div>
+          <div className="col-span-12 lg:col-span-6">
+            <MonthlyTrend
+              data={trend}
+              loading={loading}
+              selectedOrgs={filters.parent_orgs}
+              allOrgs={filterOptions?.parent_orgs ?? []}
+              onOrgsChange={(orgs) => handleFilterChange({ parent_orgs: orgs })}
             />
-          ))}
+          </div>
+          <div className="col-span-12 lg:col-span-3">
+            <MarketShare data={marketShare} loading={loading} />
+          </div>
         </div>
-      </header>
 
-      <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <ChartOne
-            data={data?.['chart-one']}
-            title={meta?.charts?.find((c) => c.id === 'chart-one')?.title ?? 'Revenue Overview'}
-            loading={loading}
-          />
-        </div>
-        <div>
-          <ChartFour
-            data={data?.['chart-four']}
-            title={meta?.charts?.find((c) => c.id === 'chart-four')?.title ?? 'Distribution Analysis'}
-            loading={loading}
-          />
-        </div>
-        <div>
-          <ChartTwo
-            data={data?.['chart-two']}
-            title={meta?.charts?.find((c) => c.id === 'chart-two')?.title ?? 'User Analytics'}
-            loading={loading}
-          />
-        </div>
-        <div className="lg:col-span-2">
-          <ChartThree
-            data={data?.['chart-three']}
-            title={meta?.charts?.find((c) => c.id === 'chart-three')?.title ?? 'Performance Metrics'}
-            loading={loading}
-          />
-        </div>
-      </main>
+        {/* Bottom: per-org grid */}
+        <BottomGrid data={bottomGrid} loading={loading} />
+      </div>
     </div>
   );
 };

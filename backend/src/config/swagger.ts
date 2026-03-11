@@ -30,48 +30,6 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
-        DashboardMeta: {
-          type: 'object',
-          properties: {
-            charts: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string' },
-                  title: { type: 'string' },
-                  type: { type: 'string' },
-                  description: { type: 'string' },
-                },
-              },
-            },
-            filters: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string' },
-                  label: { type: 'string' },
-                  options: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        value: { type: 'string' },
-                        label: { type: 'string' },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            lastUpdated: { type: 'string', format: 'date-time' },
-          },
-        },
-        DashboardData: {
-          type: 'object',
-          description: 'Chart data keyed by chart ID',
-        },
         Error: {
           type: 'object',
           properties: {

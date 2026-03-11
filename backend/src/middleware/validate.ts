@@ -1,17 +1,19 @@
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { z, ZodSchema } from 'zod';
 
-export const VALID_TIME_RANGES = ['7d', '30d', '90d', '1y'] as const;
-export const VALID_CATEGORIES = ['all', 'sales', 'marketing', 'operations'] as const;
-export const VALID_CHART_IDS = ['chart-one', 'chart-two', 'chart-three', 'chart-four'] as const;
-
-const dashboardQuerySchema = z.object({
-  timeRange: z.enum(VALID_TIME_RANGES).optional().default('30d'),
-  category: z.enum(VALID_CATEGORIES).optional().default('all'),
-});
-
-const chartIdSchema = z.object({
-  chartId: z.enum(VALID_CHART_IDS),
+export const caFiltersSchema = z.object({
+  region:              z.string().optional(),
+  state:               z.string().optional(),
+  county:              z.string().optional(),
+  period_from_year:    z.coerce.number().int().optional(),
+  period_from_month:   z.coerce.number().int().min(1).max(12).optional(),
+  period_to_year:      z.coerce.number().int().optional(),
+  period_to_month:     z.coerce.number().int().min(1).max(12).optional(),
+  ind_grp_plans:       z.string().optional(),
+  ma_mapd_pdp:         z.string().optional(),
+  snp_plan_type:       z.string().optional(),
+  plan_type:           z.string().optional(),
+  parent_orgs:         z.string().optional(),
 });
 
 export const validateQuery = (schema: ZodSchema) => {
@@ -44,5 +46,3 @@ export const validateParams = (schema: ZodSchema) => {
     next();
   };
 };
-
-export { dashboardQuerySchema, chartIdSchema };

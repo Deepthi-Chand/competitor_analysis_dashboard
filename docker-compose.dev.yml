@@ -44,7 +44,9 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://user:password@postgres:5432/dashboarddb
       REDIS_URL: redis://redis:6379
-      CACHE_TTL: 300
+      CACHE_TTL: 86400
+      USE_CACHE: 'false'
+      USE_RATE_LIMIT: 'false'
       NODE_ENV: development
     volumes:
       - ./backend/src:/app/src:delegated

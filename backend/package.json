@@ -8,10 +8,15 @@
     "build": "tsc",
     "dev": "ts-node src/server.ts",
     "migrate": "knex migrate:latest",
-    "migrate:rollback": "knex migrate:rollback"
+    "migrate:rollback": "knex migrate:rollback",
+    "seed": "ts-node src/db/seed.ts",
+    "clean": "rm -rf dist",
+    "clear-cache": "npm cache clean --force",
+    "invalidate-cache": "ts-node src/scripts/clearCache.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "csv-parse": "^5.5.3",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",

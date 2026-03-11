@@ -1,8 +1,19 @@
 import { Request, Response, NextFunction } from 'express';
 import * as cache from '../cache/cache';
 
+const CACHE_ENABLED = process.env.USE_CACHE === 'true';
+
+if (!CACHE_ENABLED) {
+  console.log('Cache disabled (USE_CACHE != true)');
+}
+
 const cacheMiddleware = (endpoint: string) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!CACHE_ENABLED) {
+      next();
+      return;
+    }
+
     const cacheKey = cache.generateCacheKey(endpoint, {
       ...req.params,
       ...req.query,
